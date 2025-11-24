@@ -17,4 +17,3 @@ public interface TransactionDao {
      */
     List<Transaction> listByAccountId(UUID accountId);
 }
-

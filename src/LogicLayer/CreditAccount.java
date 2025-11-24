@@ -20,6 +20,7 @@ public class CreditAccount extends Account {
         this.creditLimit = creditLimit != null ? creditLimit : BigDecimal.ZERO;
     }
 
+
     @Override
     public boolean hasSufficientFunds(BigDecimal amount) {
         // Puede ir negativo hasta -creditLimit

@@ -30,5 +30,9 @@ public class InMemoryAccountDao implements AccountDao {
     public void update(Account account) {
         accountsById.put(account.getId(), account);
     }
-}
 
+    @Override
+    public List<Account> findAll() {
+        return new ArrayList<>(accountsById.values());
+    }
+}

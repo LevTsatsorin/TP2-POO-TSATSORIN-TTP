@@ -24,4 +24,3 @@ public class InMemoryCredentialDao implements CredentialDao {
         return pinHashByClientId.get(clientId);
     }
 }
-

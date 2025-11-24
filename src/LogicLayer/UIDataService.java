@@ -1,6 +1,7 @@
  package LogicLayer;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,7 +14,7 @@ public class UIDataService {
     private final SummaryService summaryService;
 
     public UIDataService(ClientService clientService, AccountService accountService,
-                        AuthService authService, SummaryService summaryService) {
+                         AuthService authService, SummaryService summaryService) {
         this.clientService = clientService;
         this.accountService = accountService;
         this.authService = authService;
@@ -47,8 +48,8 @@ public class UIDataService {
      */
     public String formatAccountInfo(Account account) {
         return account.type() + " - " +
-               account.getBaseCurrency().getSymbol() +
-               formatAmount(account.getBalance());
+                account.getBaseCurrency().getSymbol() +
+                formatAmount(account.getBalance());
     }
 
     /**
@@ -67,7 +68,7 @@ public class UIDataService {
             sb.append((i + 1)).append(". ").append(acc.type()).append("\n");
             sb.append("   Moneda: ").append(acc.getBaseCurrency()).append("\n");
             sb.append("   Saldo: ").append(acc.getBaseCurrency().getSymbol())
-              .append(formatAmount(acc.getBalance())).append("\n\n");
+                    .append(formatAmount(acc.getBalance())).append("\n\n");
         }
 
         return sb.toString();
@@ -86,7 +87,7 @@ public class UIDataService {
         StringBuilder sb = new StringBuilder("=== HISTORIAL DE TRANSACCIONES ===\n\n");
         sb.append("Cuenta: ").append(account.type()).append("\n");
         sb.append("Saldo actual: ").append(account.getBaseCurrency().getSymbol())
-          .append(formatAmount(account.getBalance())).append("\n\n");
+                .append(formatAmount(account.getBalance())).append("\n\n");
         sb.append("-----------------------------\n\n");
 
         for (Transaction tx : transactions) {
@@ -98,6 +99,7 @@ public class UIDataService {
 
     /**
      * Formatea un número con separadores de miles (2 decimales)
+     *
      * @param amount Monto a formatear
      * @return String formateado (ej: 1,234,567.89)
      */
@@ -108,6 +110,7 @@ public class UIDataService {
     /**
      * Formatea una tasa de cambio con decimales suficientes para mostrar el valor correctamente
      * Usa hasta 5 decimales para tasas pequeñas (como 0.00061)
+     *
      * @param rate Tasa de cambio a formatear
      * @return String formateado
      */
@@ -167,7 +170,7 @@ public class UIDataService {
 
         for (Client client : clients) {
             sb.append("• ").append(client.getName())
-              .append(" (@").append(client.getAlias()).append(")\n");
+                    .append(" (@").append(client.getAlias()).append(")\n");
         }
 
         sb.append("\n--- Datos de Demostración ---\n");
@@ -237,8 +240,99 @@ public class UIDataService {
      */
     public String getCurrentClientName() {
         Client client = getCurrentClient();
-        return client != null ? client.getName() : null;
+        return client != null ? client.getName() : "Usuario";
+    }
+
+    /**
+     * Obtiene solo las cuentas de inversión del cliente actual
+     */
+    public List<InvestmentAccount> getCurrentClientInvestmentAccounts() {
+        List<Account> allAccounts = getCurrentClientAccounts();
+        List<InvestmentAccount> investmentAccounts = new ArrayList<>();
+
+        for (Account acc : allAccounts) {
+            if (acc instanceof InvestmentAccount) {
+                investmentAccounts.add((InvestmentAccount) acc);
+            }
+        }
+
+        return investmentAccounts;
+    }
+
+    /**
+     * Formatea una tasa de interés como porcentaje
+     */
+    public String formatRate(BigDecimal rate) {
+        BigDecimal percentage = rate.multiply(BigDecimal.valueOf(100));
+        String sign = percentage.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+        return sign + String.format("%.3f%%", percentage);
+    }
+
+    /**
+     * Formatea el historial completo de inversiones
+     */
+    public String formatInvestmentHistory(List<InvestmentAccount> investmentAccounts) {
+        if (investmentAccounts == null || investmentAccounts.isEmpty()) {
+            return null;
+        }
+
+        StringBuilder sb = new StringBuilder("=== HISTORIAL DE INVERSIONES ===\n\n");
+        sb.append("Día actual: ").append(SimulatedClock.getCurrentDay()).append("\n\n");
+
+        for (InvestmentAccount acc : investmentAccounts) {
+            sb.append("-----------------------------\n");
+            sb.append("Cuenta: ").append(acc.getBaseCurrency()).append("\n");
+            sb.append("Saldo actual: ").append(acc.getBaseCurrency().getSymbol())
+                    .append(formatAmount(acc.getBalance())).append("\n");
+            sb.append("-----------------------------\n\n");
+
+            List<InvestmentHistory> records = acc.getHistory();
+
+            if (records.isEmpty()) {
+                sb.append("Sin historial de simulaciones\n\n");
+            } else {
+                int bullishDays = acc.getBullishDaysCount();
+                int bearishDays = acc.getBearishDaysCount();
+                BigDecimal totalProfit = acc.getTotalReturn();
+                BigDecimal initialBalance = records.get(0).getBalanceBefore();
+
+                sb.append("Total de días simulados: ").append(records.size()).append("\n");
+                sb.append("Días alcistas: ").append(bullishDays).append("\n");
+                sb.append("Días bajistas: ").append(bearishDays).append("\n");
+                sb.append("Saldo inicial: ").append(acc.getBaseCurrency().getSymbol())
+                        .append(formatAmount(initialBalance)).append("\n");
+                sb.append("Ganancia/Pérdida total: ").append(acc.getBaseCurrency().getSymbol())
+                        .append(formatAmount(totalProfit)).append("\n\n");
+
+                sb.append("-----------------------------\n");
+                sb.append("DETALLE POR DÍA:\n");
+                sb.append("-----------------------------\n\n");
+
+                // Detalle por día (similar al formato de transacciones)
+                for (InvestmentHistory record : records) {
+                    sb.append("Fecha: ").append(record.getDate()).append("\n");
+                    sb.append("Tasa: ").append(formatRate(record.getDailyRate()));
+
+                    if (record.isBullish()) {
+                        sb.append(" [ALCISTA]\n");
+                    } else if (record.getProfit().compareTo(BigDecimal.ZERO) < 0) {
+                        sb.append(" [BAJISTA]\n");
+                    } else {
+                        sb.append(" [ESTABLE]\n");
+                    }
+
+                    sb.append("Saldo anterior: ").append(acc.getBaseCurrency().getSymbol())
+                            .append(formatAmount(record.getBalanceBefore())).append("\n");
+                    sb.append("Saldo nuevo: ").append(acc.getBaseCurrency().getSymbol())
+                            .append(formatAmount(record.getBalanceAfter())).append("\n");
+                    sb.append("Rendimiento: ").append(acc.getBaseCurrency().getSymbol())
+                            .append(formatAmount(record.getProfit())).append("\n");
+                    sb.append("\n");
+                }
+            }
+            sb.append("\n");
+        }
+
+        return sb.toString();
     }
 }
-
-

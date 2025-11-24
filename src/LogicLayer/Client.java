@@ -60,4 +60,3 @@ public class Client {
         return id.hashCode();
     }
 }
-

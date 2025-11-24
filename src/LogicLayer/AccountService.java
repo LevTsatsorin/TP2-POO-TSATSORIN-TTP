@@ -49,6 +49,17 @@ public class AccountService {
     }
 
     /**
+     * Crea una cuenta de inversión
+     */
+    public InvestmentAccount createInvestmentAccount(Client owner, Currency baseCurrency, BigDecimal initialBalance) {
+        validateAccountCreation(owner, baseCurrency, initialBalance);
+
+        InvestmentAccount account = new InvestmentAccount(owner, baseCurrency, initialBalance);
+        accountDao.save(account);
+        return account;
+    }
+
+    /**
      * Realiza un depósito en una cuenta
      */
     public Transaction deposit(Account target, BigDecimal amount, String note) {

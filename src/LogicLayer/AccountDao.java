@@ -21,5 +21,10 @@ public interface AccountDao {
      * Actualiza una cuenta existente
      */
     void update(Account account);
+
+    /**
+     * Obtiene todas las cuentas del sistema
+     */
+    List<Account> findAll();
 }
 

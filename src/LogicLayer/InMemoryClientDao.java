@@ -38,4 +38,3 @@ public class InMemoryClientDao implements ClientDao {
         return new ArrayList<>(clientsById.values());
     }
 }
-

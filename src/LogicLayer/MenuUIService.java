@@ -2,6 +2,7 @@ package LogicLayer;
 
 import javax.swing.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,16 +17,19 @@ public class MenuUIService {
     private final TransferService transferService;
     private final UIDataService uiDataService;
     private final RateProvider rateProvider;
+    private final InvestmentService investmentService;
 
     public MenuUIService(AuthService authService, AccountService accountService,
                         RegistrationService registrationService, TransferService transferService,
-                        UIDataService uiDataService, RateProvider rateProvider) {
+                        UIDataService uiDataService, RateProvider rateProvider,
+                        InvestmentService investmentService) {
         this.authService = authService;
         this.accountService = accountService;
         this.registrationService = registrationService;
         this.transferService = transferService;
         this.uiDataService = uiDataService;
         this.rateProvider = rateProvider;
+        this.investmentService = investmentService;
     }
 
     /**
@@ -75,11 +79,14 @@ public class MenuUIService {
                 "Transferir",
                 "Ver Historial",
                 "Resumen Total",
+                "Inversiones",
                 "Cerrar Sesión"
         };
 
         int choice = JOptionPane.showOptionDialog(null,
-                "Usuario: " + clientName + "\n\nSeleccione una operación:",
+                "Usuario: " + clientName + "\n" +
+                "Día actual: " + SimulatedClock.getCurrentDay() + "\n\n" +
+                "Seleccione una operación:",
                 "Sistema Bancario - Menú Principal",
                 JOptionPane.DEFAULT_OPTION,
                 JOptionPane.INFORMATION_MESSAGE,
@@ -110,6 +117,9 @@ public class MenuUIService {
                 showSummary();
                 break;
             case 7:
+                showInvestmentMenu();
+                break;
+            case 8:
             case JOptionPane.CLOSED_OPTION:
                 authService.logout();
                 JOptionPane.showMessageDialog(null,
@@ -121,7 +131,7 @@ public class MenuUIService {
     }
 
     /**
-     * Maneja el proceso de login con reintentos
+     * Maneja el proceso de login
      */
     private void handleLogin() {
         String alias = null;
@@ -394,7 +404,7 @@ public class MenuUIService {
     private void createNewAccount() {
         Client client = uiDataService.getCurrentClient();
 
-        String[] accountTypes = {"Cuenta de Ahorro", "Cuenta de Crédito"};
+        String[] accountTypes = {"Cuenta de Ahorro", "Cuenta de Crédito", "Cuenta de Inversión"};
         int typeChoice = JOptionPane.showOptionDialog(null,
                 "Seleccione el tipo de cuenta:",
                 "Nueva Cuenta",
@@ -426,26 +436,39 @@ public class MenuUIService {
         try {
             BigDecimal initialBalance = new BigDecimal(balanceStr);
 
-            if (typeChoice == 0) {
-                accountService.createSavingsAccount(client, selectedCurrency, initialBalance);
-                JOptionPane.showMessageDialog(null,
-                        "Cuenta de ahorro creada exitosamente",
-                        "Éxito",
-                        JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                String limitStr = JOptionPane.showInputDialog(null,
-                        "Ingrese el límite de crédito:",
-                        "Nueva Cuenta",
-                        JOptionPane.QUESTION_MESSAGE);
+            switch (typeChoice) {
+                case 0: // Cuenta de Ahorro
+                    accountService.createSavingsAccount(client, selectedCurrency, initialBalance);
+                    JOptionPane.showMessageDialog(null,
+                            "Cuenta de ahorro creada exitosamente",
+                            "Éxito",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    break;
 
-                if (limitStr == null) return;
+                case 1: // Cuenta de Crédito
+                    String limitStr = JOptionPane.showInputDialog(null,
+                            "Ingrese el límite de crédito:",
+                            "Nueva Cuenta",
+                            JOptionPane.QUESTION_MESSAGE);
 
-                BigDecimal creditLimit = new BigDecimal(limitStr);
-                accountService.createCreditAccount(client, selectedCurrency, initialBalance, creditLimit);
-                JOptionPane.showMessageDialog(null,
-                        "Cuenta de crédito creada exitosamente",
-                        "Éxito",
-                        JOptionPane.INFORMATION_MESSAGE);
+                    if (limitStr == null) return;
+
+                    BigDecimal creditLimit = new BigDecimal(limitStr);
+                    accountService.createCreditAccount(client, selectedCurrency, initialBalance, creditLimit);
+                    JOptionPane.showMessageDialog(null,
+                            "Cuenta de crédito creada exitosamente",
+                            "Éxito",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    break;
+
+                case 2: // Cuenta de Inversión
+                    accountService.createInvestmentAccount(client, selectedCurrency, initialBalance);
+                    JOptionPane.showMessageDialog(null,
+                            "Cuenta de inversión creada exitosamente\n\n" +
+                            "El rendimiento se calculará diariamente según el mercado.\n",
+                            "Éxito",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    break;
             }
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(null,
@@ -461,7 +484,7 @@ public class MenuUIService {
     }
 
     /**
-     * Maneja depósito a una cuenta
+     * Maneja depósito en una cuenta
      */
     private void handleDeposit() {
         Account account = selectAccount("Seleccione la cuenta para depositar:");
@@ -855,5 +878,183 @@ public class MenuUIService {
 
         return uiDataService.findAccountByDisplayString(selected);
     }
-}
 
+    /**
+     * Muestra el menú de inversiones
+     */
+    private void showInvestmentMenu() {
+        if (!uiDataService.hasAccounts()) {
+            JOptionPane.showMessageDialog(null,
+                    "No tiene cuentas registradas.",
+                    "No tiene cuentas registradas.\nCree una nueva cuenta primero.",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // Obtener cuentas de inversión del cliente actual
+        List<InvestmentAccount> investmentAccounts = uiDataService.getCurrentClientInvestmentAccounts();
+
+        if (investmentAccounts.isEmpty()) {
+            JOptionPane.showMessageDialog(null,
+                    "No tiene cuentas de inversión.\n" +
+                    "Cree una cuenta de inversión desde el menú principal.",
+                    "Sin Cuentas de Inversión",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // Menú interactivo de inversiones
+        boolean inInvestmentMenu = true;
+        while (inInvestmentMenu) {
+            String[] options = {
+                    "Ver Estado Actual",
+                    "Avanzar 1 Día",
+                    "Ver Historial Completo",
+                    "Volver al Menú Principal"
+            };
+
+            int choice = JOptionPane.showOptionDialog(null,
+                    "=== INVERSIONES ===\n\n" +
+                    "Día actual: " + SimulatedClock.getCurrentDay() + "\n\n" +
+                    "Seleccione una opción:",
+                    "Menú de Inversiones",
+                    JOptionPane.DEFAULT_OPTION,
+                    JOptionPane.INFORMATION_MESSAGE,
+                    null,
+                    options,
+                    options[0]);
+
+            switch (choice) {
+                case 0:
+                    showCurrentInvestmentStatus(investmentAccounts);
+                    break;
+                case 1:
+                    advanceOneDayAndShowResult(investmentAccounts);
+                    break;
+                case 2:
+                    showFullInvestmentHistory(investmentAccounts);
+                    break;
+                case 3:
+                case JOptionPane.CLOSED_OPTION:
+                    inInvestmentMenu = false;
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Muestra el estado actual de las inversiones
+     */
+    private void showCurrentInvestmentStatus(List<InvestmentAccount> investmentAccounts) {
+        StringBuilder info = new StringBuilder();
+        info.append("=== ESTADO ACTUAL DE INVERSIONES ===\n\n");
+        info.append("Día actual: ").append(SimulatedClock.getCurrentDay()).append("\n\n");
+
+        for (InvestmentAccount acc : investmentAccounts) {
+            info.append("Cuenta de Inversión - ").append(acc.getBaseCurrency()).append("\n");
+            info.append("Saldo actual: ").append(acc.getBaseCurrency().getSymbol())
+                .append(uiDataService.formatAmount(acc.getBalance())).append("\n");
+
+            List<InvestmentHistory> history = acc.getHistory();
+            if (!history.isEmpty()) {
+                InvestmentHistory latest = history.get(history.size() - 1);
+                info.append("Última actualización: ").append(latest.getDate()).append("\n");
+                info.append("Última tasa: ").append(uiDataService.formatRate(latest.getDailyRate())).append("\n");
+                info.append("Último rendimiento: ").append(acc.getBaseCurrency().getSymbol())
+                    .append(uiDataService.formatAmount(latest.getProfit())).append("\n");
+            } else {
+                info.append("Sin movimientos aún\n");
+            }
+            info.append("\n");
+        }
+
+        JOptionPane.showMessageDialog(null,
+                info.toString(),
+                "Estado Actual",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * Avanza un día y muestra los resultados
+     */
+    private void advanceOneDayAndShowResult(List<InvestmentAccount> investmentAccounts) {
+        LocalDate previousDay = SimulatedClock.getCurrentDay();
+        SimulatedClock.advanceOneDay();
+        LocalDate currentDay = SimulatedClock.getCurrentDay();
+
+        // Generar tasa del día
+        BigDecimal dailyRate = investmentService.getMarketSimulator().generateDailyRate();
+
+        // Actualizar TODAS las cuentas de inversión del sistema
+        investmentService.updateAllInvestmentAccountsInSystem(currentDay, dailyRate);
+
+        StringBuilder result = new StringBuilder();
+        result.append("=== RESULTADOS DEL DÍA ===\n\n");
+        result.append("Día anterior: ").append(previousDay).append("\n");
+        result.append("Día actual: ").append(currentDay).append("\n\n");
+        result.append("Tasa del mercado: ").append(uiDataService.formatRate(dailyRate));
+
+        if (dailyRate.compareTo(BigDecimal.ZERO) > 0) {
+            result.append(" 📈 ALCISTA\n\n");
+        } else if (dailyRate.compareTo(BigDecimal.ZERO) < 0) {
+            result.append(" 📉 BAJISTA\n\n");
+        } else {
+            result.append(" ➡️ ESTABLE\n\n");
+        }
+
+        result.append("-------------------------------------\n");
+        result.append("SUS CUENTAS DE INVERSIÓN:\n");
+        result.append("-------------------------------------\n\n");
+
+        // Mostrar resultado solo para las cuentas del usuario actual
+        for (InvestmentAccount acc : investmentAccounts) {
+            // Obtener el historial para ver el último cambio
+            List<InvestmentHistory> history = acc.getHistory();
+            if (!history.isEmpty()) {
+                InvestmentHistory latest = history.get(history.size() - 1);
+                BigDecimal profit = latest.getProfit();
+
+                result.append("Cuenta ").append(acc.getBaseCurrency()).append(":\n");
+                result.append("  Saldo anterior: ").append(acc.getBaseCurrency().getSymbol())
+                      .append(uiDataService.formatAmount(latest.getBalanceBefore())).append("\n");
+                result.append("  Saldo nuevo: ").append(acc.getBaseCurrency().getSymbol())
+                      .append(uiDataService.formatAmount(latest.getBalanceAfter())).append("\n");
+                result.append("  Rendimiento: ").append(acc.getBaseCurrency().getSymbol())
+                      .append(uiDataService.formatAmount(profit));
+
+                result.append("\n");
+            }
+        }
+
+        JOptionPane.showMessageDialog(null,
+                result.toString(),
+                "Día Simulado",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * Muestra el historial completo de todas las simulaciones
+     */
+    private void showFullInvestmentHistory(List<InvestmentAccount> investmentAccounts) {
+        String history = uiDataService.formatInvestmentHistory(investmentAccounts);
+
+        if (history == null || history.isEmpty()) {
+            JOptionPane.showMessageDialog(null,
+                    "No hay historial de inversiones",
+                    "Historial de Inversiones",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JTextArea textArea = new JTextArea(history);
+        textArea.setEditable(false);
+        textArea.setRows(20);
+        textArea.setColumns(60);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+
+        JOptionPane.showMessageDialog(null,
+                scrollPane,
+                "Historial de Inversiones",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+}

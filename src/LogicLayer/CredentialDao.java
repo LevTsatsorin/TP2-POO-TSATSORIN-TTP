@@ -16,4 +16,3 @@ public interface CredentialDao {
      */
     byte[] getByClientId(UUID clientId);
 }
-

@@ -41,13 +41,17 @@ public class Main {
         TransferService transferService = new TransferService(accountService, clientService, authService);
         UIDataService uiDataService = new UIDataService(clientService, accountService, authService, summaryService);
 
-        // Crear servicio de menús (contiene toda la lógica de UI)
+        // Crear servicios de inversión
+        MarketSimulator marketSimulator = new MarketSimulator();
+        InvestmentService investmentService = new InvestmentService(accountDao, marketSimulator);
+
+        // Crear servicio de menú
         menuService = new MenuUIService(authService, accountService, registrationService,
-                transferService, uiDataService, rateProvider);
+                transferService, uiDataService, rateProvider, investmentService);
     }
 
     /**
-     * Crea datos de demostración
+     * Crea datos de demostración para testing
      */
     private static void createDemoData() {
         try {
@@ -60,15 +64,16 @@ public class Main {
             accountService.createSavingsAccount(juan, Currency.ARS, new BigDecimal("50000"));
             accountService.createSavingsAccount(juan, Currency.USD, new BigDecimal("1000"));
             accountService.createCreditAccount(juan, Currency.ARS, BigDecimal.ZERO, new BigDecimal("100000"));
+            accountService.createInvestmentAccount(juan, Currency.ARS, new BigDecimal("10000"));
 
             // Crear cuentas para María
             accountService.createSavingsAccount(maria, Currency.USD, new BigDecimal("5000"));
             accountService.createCreditAccount(maria, Currency.EUR, new BigDecimal("500"), new BigDecimal("2000"));
+            accountService.createInvestmentAccount(maria, Currency.USD, new BigDecimal("2000"));
 
             // Crear cuentas para Carlos
             accountService.createSavingsAccount(carlos, Currency.EUR, new BigDecimal("3000"));
             accountService.createSavingsAccount(carlos, Currency.ARS, new BigDecimal("100000"));
-
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null,
                     "Error al crear datos de demostración: " + e.getMessage(),
